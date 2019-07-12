@@ -33,20 +33,20 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 
 // Flag for ECU connection
 byte ECUconnected;
-byte resbuf[10];
+byte resbuf[12];
 byte resState;
 int RPM;
 
 //initialise communications messages
-byte MessageWakeup[] = {0xFE, 0x04, 0x72, 0x8C}; // wakeup
+byte MessageWakeup[] = {0xFE, 0x04, 0x72, 0x8C}; // wakeup no responce from ECU
 byte MessageInitialise[] = {0x72, 0x05, 0x00, 0xF0, 0x99}; //initialise communications The ECU should respond with: 02 04 00 FA
 
 //get info from ECU VFR Specific
-byte message03[] = {0x72, 0x07, 0x72, 0x60, 0x00, 0x06, 0xAF};
-byte message04[] = {0x72, 0x07, 0x72, 0x21, 0x00, 0x06, 0xEE}; 
-byte message05[] = {0x72, 0x07, 0x72, 0xD0, 0x00, 0x06, 0x3F};
-byte message06[] = {0x72, 0x07, 0x72, 0x16, 0x00, 0x06, 0xF9};
-byte message07[] = {0x72, 0x07, 0x72, 0xD1, 0x00, 0x06, 0x3E}; 
+byte message03[] = {0x72, 0x07, 0x72, 0x60, 0x00, 0x06, 0xAF}; //unknown
+byte message04[] = {0x72, 0x07, 0x72, 0x21, 0x00, 0x06, 0xEE}; //unknown
+byte message05[] = {0x72, 0x07, 0x72, 0xD0, 0x00, 0x06, 0x3F}; //unknown
+byte Table16[] = {0x72, 0x07, 0x72, 0x16, 0x00, 0x06, 0xF9};   //vfr 1200f responce 
+byte message07[] = {0x72, 0x07, 0x72, 0xD1, 0x00, 0x06, 0x3E}; //unknown
 
 // needed to calculate checksum  
 byte calculate[] = {0x72, 0x07, 0x72, 0x60, 0x00, 0x06};                                                           
@@ -63,48 +63,52 @@ void loop(){
     debug.print("\nCommand: ");
     debug.println(incomingCommand);
   }
-   if (incomingCommand == 'c'){
+  // calc checksome loop
+  /* if (incomingCommand == 'c'){
       byte calculate2;
       calculate2 = calc_checksum(calculate, sizeof calculate);
       debug.println(calculate2, HEX); 
    }
-     
+  */   
 unsigned long startedWaiting = millis();
-  //if ((incomingCommand == 'i') || (ECUconnected = BUSY) )
+  //if ((incomingCommand == 'i') || (ECUconnected = BUSY) ){ //loop
   
-  if (incomingCommand == 'i') {
+ if (incomingCommand == 'i') { //no loop
     ECUconnected = BUSY;
     //Try to connect with the ECU
     while (ECUconnected == BUSY){
      ECUconnected = initHonda();
     }
     while (ECUconnected == SUCCESS) {
-      bike.write(message03, sizeof(message03));
-      bike.flush();
-      serialFlush();
-      delay(300);
-      checkResponse();
-      serialFlush();
-      delay(200);
-      debug.println(" ");
+     // bike.write(message06, sizeof(message06));
+     // bike.flush();
+     // bikeFlush();
+    //  delay(300);
+    //  checkResponse();
+    //  bikeFlush();
+    //  delay(200);
+    //  debug.println(" ");
       //-------------
-    /*
-    // Request engine RPM
-    bike.write(message03, sizeof(message03));
+    // Request table 16
+    bike.write(Table16, sizeof(Table16));
     bike.flush();
-    serialFlush();
+    bikeFlush();
     // Receive the response. Receiving this way will block the Arduino.
     resState = BUSY;
+    delay(300);
+    //checkResponse();
     while (resState == BUSY) {
       resState = getResponse(resbuf);
     }
     // Successfully received the response message which is stored in resbuf
     if (resState == SUCCESS) {
        // Check if response is positive
-         if (resbuf[4] == 0x61) {
+         if (resbuf[3] == 0x16) {
             // RPM are calculated by 100*resbuf[6]+resbuf[7]
-            RPM = 100 * resbuf[6] + resbuf[7];
+            RPM = 100 * resbuf[4] + resbuf[5];
             // Do something with RPM e.g. show on LCD, write to file on SD,
+            debug.println("RPM");
+            debug.println(RPM);
          } 
          else {
             // No positive response, reset ECU connection
@@ -113,13 +117,11 @@ unsigned long startedWaiting = millis();
     } 
     else if (resState == TIMEOUT) {
       // Timeout, reinitiate ECU
-      */
+      debug.println("Timeout Getting Responce");
+     ECUconnected = BUSY;
       
-   // }
-   
-    //-------------
+   }
   }
-    ECUconnected = BUSY;
  }
 }
 
@@ -144,21 +146,21 @@ void checkResponse(){
     debug.print(' ');
   }
 }
-
-void serialFlush(){
+// cleare bike terminal
+void bikeFlush(){
   while(bike.available()) bike.read();
-}   
+}  
 
+//initialise communications
 byte initHonda(){
-  
-  debug.println("Starting init Honda");
+  debug.println("Starting initialise Honda");
   bike.end();
   delay(350);
   //Sending LOW
   digitalWrite(TX_PIN, LOW);
   delay(70);
   //Sending High
-  digitalWrite(TX_PIN, HIGH); // this is not an error, it has to came before the pinMode
+  digitalWrite(TX_PIN, HIGH);
   delay(120);
   pinMode(TX_PIN, OUTPUT);
   //Start Bike serial1
@@ -169,28 +171,29 @@ byte initHonda(){
   bike.flush(); // wait to send all
   
   resState = BUSY;
-  // Try to do read a wakeup
+  // Try to read a wakeup is send
   while (resState == BUSY) resState = getResponse(resbuf);
   if (resState == SUCCESS) {
     delay(300);
     resState = BUSY;
+    // Try to read initialise responce
     while (resState == BUSY) resState = getResponse(resbuf);
     if (resState == SUCCESS) {
     
        if (resState == SUCCESS) {
           return SUCCESS; 
        } else {
-            debug.println("Failed init Honda somthing is wrong retry"); // Return false if diagnostic mode request was denied or failed
+            debug.println("Failed init Honda, somthing is wrong retry"); // Return false if diagnostic mode request was denied or failed
             return BUSY; 
          }
     }
     if (resState == TIMEOUT){
-        debug.println("Failed init Honda"); // Return false if diagnostic mode request was denied or failed
+        debug.println("TIMEOUT init Honda"); // Return false if diagnostic mode request was denied or failed
         return BUSY; 
     }
  }
  if (resState == TIMEOUT){
-  debug.println("Failed WakeUp Honda"); // Return false if diagnostic mode request was denied or failed 
+  debug.println("TIMEOUT WakeUp Honda"); // Return false if diagnostic mode request was denied or failed 
   return BUSY; 
  }
 }
@@ -210,17 +213,17 @@ byte getResponse(byte *rbuffer) {
     if (index < len) {
       // Check if bytes are available
       unsigned long startedWaiting = millis();
-      while ((bike.available() > 0) ||  (millis() - startedWaiting <= 2000)) {
+      while ((bike.available() > 0) ||  (millis() - startedWaiting <= 4000)) {
+         //while (bike.available() > 0) {
         // Reset timer
         t=0;
-        // Read one byte
-        //debug.println("Read one byte");
         rbuffer[index] = bike.read();
         //debug.println(rbuffer[0], HEX);
         // First received byte must be correct 0xFE, 0x04, 0x72, 0x8C
         if (rbuffer[0] == 0xFE){
           // Clear bike RX buffer
           while(bike.available()) bike.read();
+          memset(rbuffer, 0, sizeof(rbuffer));
           debug.println("Wakeup OK");
               t = 0;
               index = 0;
@@ -228,22 +231,30 @@ byte getResponse(byte *rbuffer) {
           return SUCCESS;
          }
 
-         if ((rbuffer[0] == 0x02) && (rbuffer[1] == 0x04) && (rbuffer[2] == 0x00)){
+         if ((rbuffer[0] == 0x02) && (rbuffer[1] == 0x04) && (rbuffer[2] == 0x00) && (rbuffer[3] == 0xFA)){
             // Clear bike RX buffer
-            debug.println("clear responce");  
             while(bike.available()) bike.read();
             debug.println("ini OK");  
               t = 0;
               index = 0;
               len = 255;
+              delay(200);
+              memset(rbuffer, 0, sizeof(rbuffer));
             return SUCCESS;
-           
          }
-          index++;
+        if (rbuffer[3] == 0x16){
+            //debug.println("found data table 16");  
+              t = 0;
+              //index = 0;
+              index++;
+              len = 12;
+            return BUSY;
+         }
+         index++;
           return BUSY; 
           
        }
-       debug.println("Timeout");
+       //debug.println("Timeout");
         return TIMEOUT;
         
      }
@@ -253,7 +264,7 @@ byte getResponse(byte *rbuffer) {
       index = 0;
       len = 255;
       delay(55);
-      debug.println("succes");
+      //debug.println("succes");
       return SUCCESS;
      }
  } 
@@ -261,7 +272,7 @@ byte getResponse(byte *rbuffer) {
     t = 0;
     index = 0;
     len = 255;
-    debug.println("Timeout");
+    //debug.println("Timeout");
     return TIMEOUT;
     //return BUSY; 
  }
