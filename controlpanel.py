@@ -175,14 +175,14 @@ class HondaECU_ControlPanel(wx.Frame):
 				"disabled":True,
 				"enable": [ECUSTATE.OK],
 			},
-			# "hrcsettings": {
-			# 	"label":"HRC Settings",
-			# 	"icon":"images/cog.png",
-			# 	"conflicts":["flash","data","dtc","info"],
-			# 	"panel":HondaECU_HRCDataSettingsPanel,
-			# 	"disabled":True,
-			# 	"enable": [ECUSTATE.OK],
-			# },
+			"hrcsettings": {
+		 		"label":"HRC Settings",
+				"icon":"images/cog.png",
+				"conflicts":["flash","data","dtc","info"],
+				"panel":HondaECU_HRCDataSettingsPanel,
+				"disabled":True,
+				"enable": [ECUSTATE.OK],
+			 },
 
 		}
 		self.appanels = {}
